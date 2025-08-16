@@ -3,6 +3,19 @@ import json
 import discord
 from discord.ext import commands
 from pathlib import Path
+from discord.ext import commands
+import asyncio
+from discord.errors import DiscordServerError
+
+async def safe_send(ctx, message, max_retries=3):
+    """Helper function to retry failed messages"""
+    for attempt in range(max_retries):
+        try:
+            return await ctx.send(message)
+        except DiscordServerError:
+            if attempt == max_retries - 1:
+                raise
+            await asyncio.sleep(1 + attempt)  # Exponential backoff
 
 # --- BOT SETUP ---
 intents = discord.Intents.default()
@@ -94,7 +107,7 @@ async def addcol(ctx, colname: str):
     table = load_table(ctx.guild.id)
     table["headers"].append(colname)
     save_table(ctx.guild.id, table)
-    await ctx.send(f"📝 Added column: **{colname}**")
+    await safe_send(ctx, f"📝 Added column: **{colname}**")
 
 @bot.command()
 async def addrow(ctx, *values):
