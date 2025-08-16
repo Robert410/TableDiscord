@@ -88,6 +88,127 @@ async def createtable(ctx):
     await ctx.send("✅ New table created for this server!")
     
 @bot.command()
+async def bulkedit(ctx, col_index: int, start_row: int, end_row: int, value: str):
+    """
+    Edit a column across multiple rows (from start_row to end_row inclusive).
+    Example: !bulkedit 2 1 5 UpdatedValue
+    """
+    table = load_table(ctx.guild.id)
+
+    # Validate column
+    if col_index < 1 or col_index > len(table["headers"]):
+        await ctx.send(f"⚠️ Invalid column index! (1-{len(table['headers'])})")
+        return
+
+    # Validate rows
+    if start_row < 1 or end_row > len(table["rows"]) or start_row > end_row:
+        await ctx.send(f"⚠️ Invalid row range! (1-{len(table['rows'])})")
+        return
+
+    # Apply updates
+    for i in range(start_row - 1, end_row):  # shift for 0-index
+        table["rows"][i][col_index - 1] = value
+
+    save_table(ctx.guild.id, table)
+
+    await ctx.send(
+        f"✏️ Updated column **{table['headers'][col_index-1]}** "
+        f"for rows {start_row} → {end_row} with value `{value}`"
+    )
+
+@bot.command()
+async def editcell(ctx, row_number: int, col_index: int, value: str):
+    """
+    Edit a single cell in the table.
+    Example: !editcell 3 2 99
+    """
+    table = load_table(ctx.guild.id)
+
+    # Validate row
+    if row_number < 1 or row_number > len(table["rows"]):
+        await ctx.send(f"⚠️ Invalid row number! (1-{len(table['rows'])})")
+        return
+
+    # Validate column
+    if col_index < 1 or col_index > len(table["headers"]):
+        await ctx.send(f"⚠️ Invalid column index! (1-{len(table['headers'])})")
+        return
+
+    # Update the cell
+    old_value = table["rows"][row_number - 1][col_index - 1]
+    table["rows"][row_number - 1][col_index - 1] = value
+    save_table(ctx.guild.id, table)
+
+    await ctx.send(
+        f"✏️ Edited cell (row {row_number}, col {col_index} = **{table['headers'][col_index-1]}**): "
+        f"`{old_value}` → `{value}`"
+    )
+    
+@bot.command(name="helpme")
+async def helpme(ctx):
+    """Custom help command showing all available commands"""
+    help_text = """
+📖 **Bot Commands**
+
+**Table Management**
+- `!createtable`
+    ➜ Create a new table for this server
+
+- `!addcol <colname>`
+    ➜ Add a new column (existing rows get `null` in this column)
+
+- `!editcol <col_index> <new_name>`
+    ➜ Rename a column  
+    Example: `!editcol 2 AgeYears`
+
+- `!addrow <val1> <val2> ...`
+    ➜ Add a new row (values must match number of columns)  
+    Example: `!addrow Alice 20 Paris`
+
+- `!editrow <row_number> <val1> <val2> ...`
+    ➜ Replace a full row with new values  
+    Example: `!editrow 2 Bob 25 London`
+
+- `!deleterow <row_number>`
+    ➜ Delete a specific row  
+    Example: `!deleterow 3`
+
+- `!showtable`
+    ➜ Display the current table
+
+---
+
+**Editing Cells**
+- `!editcell <row_number> <col_index> <value>`
+    ➜ Edit one cell in the table  
+    Example: `!editcell 2 3 Madrid`
+
+- `!bulkedit <col_index> <start_row> <end_row> <value>`
+    ➜ Edit one column across a range of rows  
+    Example: `!bulkedit 2 1 4 99`
+
+---
+
+**File Management**
+- `!listfiles`
+    ➜ List all JSON table files
+
+- `!showfile <filename>`
+    ➜ Show the raw JSON of a table  
+    Example: `!showfile 123456789.json`
+
+- `!downloadfile <filename>`
+    ➜ Download a table as a JSON file  
+    Example: `!downloadfile 123456789.json`
+
+---
+
+✅ Use `!helpme` anytime to see this list again.
+"""
+    await ctx.send(help_text)
+    
+    
+@bot.command()
 async def listfiles(ctx):
     """List all table JSON files in the tables directory"""
     ensure_tables_dir()
@@ -99,6 +220,17 @@ async def listfiles(ctx):
 
     file_list = "\n".join(f"- {f.name}" for f in files)
     await ctx.send(f"📂 Files in `tables/`:\n```\n{file_list}\n```")
+    
+@bot.command()
+async def downloadfile(ctx, filename: str):
+    """Download a table JSON file as an attachment"""
+    file_path = TABLES_DIR / filename
+
+    if not file_path.exists():
+        await ctx.send(f"⚠️ File `{filename}` not found.")
+        return
+
+    await ctx.send(file=discord.File(file_path))
     
 @bot.command()
 async def showfile(ctx, filename: str):
