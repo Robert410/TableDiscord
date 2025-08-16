@@ -4,6 +4,7 @@ from discord.ext import commands
 import asyncpg
 
 intents = discord.Intents.default()
+intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 DATABASE_URL = os.environ["DATABASE_URL"]
