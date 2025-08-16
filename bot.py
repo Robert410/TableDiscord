@@ -23,7 +23,7 @@ intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- TABLE STORAGE ---
-TABLES_DIR = Path("tables")
+TABLES_DIR = Path("/data/tables")
 
 def ensure_tables_dir():
     """Create tables directory if it doesn't exist"""
@@ -51,70 +51,34 @@ def format_table(headers, rows):
     if not headers:
         return "```\nNo table defined yet. Use !createtable first.\n```"
     
-    # Box-drawing characters
-    TOP_LEFT = "╭"
-    TOP_RIGHT = "╮"
-    BOTTOM_LEFT = "╰"
-    BOTTOM_RIGHT = "╯"
-    HORIZONTAL = "─"
-    VERTICAL = "│"
-    CROSS = "┼"
-    
-    # Calculate column widths (including row numbers)
+    # Include row numbers in first column
     all_data = [[str(i+1)] + row for i, row in enumerate(rows)]
-    all_data.insert(0, ["#"] + headers)  # Add headers for width calculation
-    
-    # Get max width for each column (including padding)
-    col_widths = [
-        max(len(str(item)) + 4 for item in column)  # 2 spaces padding on each side
-        for column in zip(*all_data)
-    ]
-    
-    # Adjust row number column to be smaller
-    col_widths[0] = max(4, col_widths[0])  # Minimum width of 4 for row numbers
-    
-    # Build top border
-    top_border = TOP_LEFT + HORIZONTAL * (col_widths[0] + 1)  # +1 for space after number
-    top_border += TOP_LEFT.join(HORIZONTAL * (w) for w in col_widths[1:]) + TOP_RIGHT
-    
+    all_data.insert(0, ["#"] + headers)
+
+    # Calculate column widths (max length per column)
+    col_widths = [max(len(str(item)) for item in col) for col in zip(*all_data)]
+
     # Build header row
-    header_cells = [VERTICAL + f" {headers[i].center(col_widths[i+1]-2)} " for i in range(len(headers))]
-    header_row = " " * (col_widths[0] + 1) + VERTICAL.join(header_cells) + VERTICAL
-    
-    # Build separator
-    separator = " " * (col_widths[0] + 1) + VERTICAL
-    separator += CROSS.join(HORIZONTAL * w for w in col_widths[1:]) + VERTICAL
-    
+    header = " | ".join(str(headers[i]).center(col_widths[i+1]) for i in range(len(headers)))
+    header = " ".rjust(col_widths[0]) + " | " + header
+
+    # Separator
+    separator = "-+-".join("-" * w for w in col_widths)
+
     # Build data rows
     data_rows = []
     for i, row in enumerate(rows, 1):
-        # Row number (right-aligned)
-        row_str = f"{i:>{col_widths[0]-1}} "  # -1 to account for space
-        
-        # Cells
-        row_str += VERTICAL
-        row_str += VERTICAL.join(
-            f" {str(cell).ljust(col_widths[j+1]-2)} " 
-            for j, cell in enumerate(row)
-        )
-        row_str += VERTICAL
-        
+        row_str = str(i).rjust(col_widths[0]) + " | "
+        row_str += " | ".join(str(cell).ljust(col_widths[j+1]) for j, cell in enumerate(row))
         data_rows.append(row_str)
-    
-    # Build bottom border
-    bottom_border = BOTTOM_LEFT + HORIZONTAL * (col_widths[0] + 1)
-    bottom_border += BOTTOM_LEFT.join(HORIZONTAL * w for w in col_widths[1:]) + BOTTOM_RIGHT
-    
-    # Combine all parts
+
+    # Combine all
     return (
-        "```diff\n"
-        "+ Table Display 📊\n"
-        f"{top_border}\n"
-        f"{header_row}\n"
+        "```text\n"
+        f"{header}\n"
         f"{separator}\n"
-        + "\n".join(data_rows) + "\n"
-        f"{bottom_border}\n"
-        "```"
+        + "\n".join(data_rows) +
+        "\n```"
     )
 # --- COMMANDS ---
 @bot.command()
@@ -122,13 +86,66 @@ async def createtable(ctx):
     ensure_tables_dir()
     save_table(ctx.guild.id, {"headers": [], "rows": []})
     await ctx.send("✅ New table created for this server!")
+    
+@bot.command()
+async def listfiles(ctx):
+    """List all table JSON files in the tables directory"""
+    ensure_tables_dir()
+    files = list(TABLES_DIR.glob("*.json"))
 
+    if not files:
+        await ctx.send("📂 No tables found.")
+        return
+
+    file_list = "\n".join(f"- {f.name}" for f in files)
+    await ctx.send(f"📂 Files in `tables/`:\n```\n{file_list}\n```")
+    
+@bot.command()
+async def showfile(ctx, filename: str):
+    """Show the raw JSON of a specific table file"""
+    ensure_tables_dir()
+    file_path = TABLES_DIR / filename
+
+    if not file_path.exists():
+        await ctx.send(f"⚠️ File `{filename}` not found.")
+        return
+
+    with open(file_path, "r") as f:
+        content = f.read()
+
+    # Discord message size limit safety (2000 chars)
+    if len(content) > 1900:
+        await ctx.send(f"⚠️ File `{filename}` is too large to display.")
+    else:
+        await ctx.send(f"📝 Contents of `{filename}`:\n```json\n{content}\n```")
+
+@bot.command()
+async def editcol(ctx, col_index: int, new_name: str):
+    table = load_table(ctx.guild.id)
+
+    if col_index < 1 or col_index > len(table["headers"]):
+        await ctx.send(f"⚠️ Invalid column index! (1-{len(table['headers'])})")
+        return
+
+    old_name = table["headers"][col_index - 1]
+    table["headers"][col_index - 1] = new_name
+    save_table(ctx.guild.id, table)
+
+    await ctx.send(f"✏️ Renamed column **{old_name}** → **{new_name}**")
+    
 @bot.command()
 async def addcol(ctx, colname: str):
     table = load_table(ctx.guild.id)
+
+    # Add column header
     table["headers"].append(colname)
+
+    # Add null values for existing rows
+    for row in table["rows"]:
+        row.append("null")
+
     save_table(ctx.guild.id, table)
-    await safe_send(ctx, f"📝 Added column: **{colname}**")
+    await safe_send(ctx, f"📝 Added column: **{colname}** (default = null)")
 
 @bot.command()
 async def addrow(ctx, *values):
