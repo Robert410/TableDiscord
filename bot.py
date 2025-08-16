@@ -2,6 +2,8 @@ import os
 import discord
 from discord.ext import commands
 import asyncpg
+from discord.ext import commands
+import asyncio
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -106,12 +108,14 @@ async def save_table(guild_id, table):
 # COMMANDS
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def createtable(ctx):
     await save_table(ctx.guild.id, {"headers": [], "rows": []})
     await ctx.send("✅ Table created!")
 
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def addcol(ctx, colname: str):
     table = await get_table(ctx.guild.id)
     table["headers"].append(colname)
@@ -120,6 +124,7 @@ async def addcol(ctx, colname: str):
 
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def addrow(ctx, *values):
     table = await get_table(ctx.guild.id)
     if len(values) != len(table["headers"]):
@@ -131,6 +136,7 @@ async def addrow(ctx, *values):
 
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def showtable(ctx):
     table = await get_table(ctx.guild.id)
     if not table["headers"]:
@@ -140,6 +146,7 @@ async def showtable(ctx):
 
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def editrow(ctx, row_number: int, *values):
     table = await get_table(ctx.guild.id)
     if row_number < 1 or row_number > len(table["rows"]):
@@ -154,6 +161,7 @@ async def editrow(ctx, row_number: int, *values):
 
 
 @bot.command()
+@commands.cooldown(1, 2, commands.BucketType.guild) 
 async def deleterow(ctx, row_number: int):
     table = await get_table(ctx.guild.id)
     if row_number < 1 or row_number > len(table["rows"]):
