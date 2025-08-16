@@ -60,41 +60,62 @@ def format_table(headers, rows):
     VERTICAL = "│"
     CROSS = "┼"
     
-    # Calculate column widths
-    all_rows = [[str(i+1)] + row for i, row in enumerate(rows)]
+    # Calculate column widths (including row numbers)
+    all_data = [[str(i+1)] + row for i, row in enumerate(rows)]
+    all_data.insert(0, ["#"] + headers)  # Add headers for width calculation
+    
+    # Get max width for each column (including padding)
     col_widths = [
-        max(len(str(item)) for item in column)
-        for column in zip(["#"] + headers, *all_rows)
+        max(len(str(item)) + 4 for item in column)  # 2 spaces padding on each side
+        for column in zip(*all_data)
     ]
     
-    # Add padding (2 spaces each side)
-    col_widths = [w + 4 for w in col_widths]
+    # Adjust row number column to be smaller
+    col_widths[0] = max(4, col_widths[0])  # Minimum width of 4 for row numbers
     
     # Build top border
-    top_border = TOP_LEFT + TOP_LEFT.join(HORIZONTAL * w for w in col_widths) + TOP_RIGHT
+    top_border = TOP_LEFT + HORIZONTAL * (col_widths[0] + 1)  # +1 for space after number
+    top_border += TOP_LEFT.join(HORIZONTAL * (w) for w in col_widths[1:]) + TOP_RIGHT
     
     # Build header row
-    header_row = VERTICAL + VERTICAL.join(
-        f" {header.center(w-2)} " for header, w in zip(headers, col_widths)
-    ) + VERTICAL
+    header_cells = [VERTICAL + f" {headers[i].center(col_widths[i+1]-2)} " for i in range(len(headers))]
+    header_row = " " * (col_widths[0] + 1) + VERTICAL.join(header_cells) + VERTICAL
     
     # Build separator
-    separator = VERTICAL + CROSS.join(HORIZONTAL * w for w in col_widths) + VERTICAL
+    separator = " " * (col_widths[0] + 1) + VERTICAL
+    separator += CROSS.join(HORIZONTAL * w for w in col_widths[1:]) + VERTICAL
     
     # Build data rows
     data_rows = []
     for i, row in enumerate(rows, 1):
-        row_cells = VERTICAL + VERTICAL.join(
-            f" {cell.ljust(w-2)} " for cell, w in zip(row, col_widths)
-        ) + VERTICAL
-        data_rows.append(f"{i:>2} {row_cells}")
+        # Row number (right-aligned)
+        row_str = f"{i:>{col_widths[0]-1}} "  # -1 to account for space
+        
+        # Cells
+        row_str += VERTICAL
+        row_str += VERTICAL.join(
+            f" {str(cell).ljust(col_widths[j+1]-2)} " 
+            for j, cell in enumerate(row)
+        )
+        row_str += VERTICAL
+        
+        data_rows.append(row_str)
     
     # Build bottom border
-    bottom_border = BOTTOM_LEFT + BOTTOM_LEFT.join(HORIZONTAL * w for w in col_widths) + BOTTOM_RIGHT
+    bottom_border = BOTTOM_LEFT + HORIZONTAL * (col_widths[0] + 1)
+    bottom_border += BOTTOM_LEFT.join(HORIZONTAL * w for w in col_widths[1:]) + BOTTOM_RIGHT
     
     # Combine all parts
-    return f"```diff\n+ Table Display 📊\n{top_border}\n{header_row}\n{separator}\n" + "\n".join(data_rows) + f"\n{bottom_border}\n```"
-
+    return (
+        "```diff\n"
+        "+ Table Display 📊\n"
+        f"{top_border}\n"
+        f"{header_row}\n"
+        f"{separator}\n"
+        + "\n".join(data_rows) + "\n"
+        f"{bottom_border}\n"
+        "```"
+    )
 # --- COMMANDS ---
 @bot.command()
 async def createtable(ctx):
