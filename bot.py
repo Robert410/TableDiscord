@@ -26,12 +26,64 @@ async def on_ready():
 
 
 def format_table(headers, rows):
-    output = "--------------------\n"
-    output += "| " + " | ".join(headers) + " |\n"
-    output += "--------------------\n"
-    for i, row in enumerate(rows, start=1):
-        output += f"{i}. " + " | ".join(row) + "\n"
-    return f"```\n{output}\n```"
+    # Define box-drawing characters and icons
+    TOP_LEFT = "╭"
+    TOP_RIGHT = "╮"
+    BOTTOM_LEFT = "╰"
+    BOTTOM_RIGHT = "╯"
+    HORIZONTAL = "─"
+    VERTICAL = "│"
+    CROSS = "┼"
+    RIGHT_T = "├"
+    LEFT_T = "┤"
+    TOP_T = "┬"
+    BOTTOM_T = "┴"
+    
+    # Calculate column widths
+    col_widths = [len(header) for header in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            col_widths[i] = max(col_widths[i], len(str(cell)))
+    
+    # Add padding (2 spaces on each side)
+    col_widths = [w + 4 for w in col_widths]
+    
+    # Build the top border
+    top_border = TOP_LEFT + TOP_T.join(HORIZONTAL * w for w in col_widths) + TOP_RIGHT
+    
+    # Build header row
+    header_row = VERTICAL + VERTICAL.join(
+        f" {header.center(col_widths[i]-2)} " for i, header in enumerate(headers)
+    ) + VERTICAL
+    
+    # Build separator
+    separator = RIGHT_T + CROSS.join(HORIZONTAL * w for w in col_widths) + LEFT_T
+    
+    # Build data rows
+    data_rows = []
+    for i, row in enumerate(rows, 1):
+        row_cells = VERTICAL + VERTICAL.join(
+            f" {str(cell).ljust(col_widths[j]-2)} " for j, cell in enumerate(row)
+        ) + VERTICAL
+        row_number = f"📋 {i}".ljust(5)  # Row number with icon
+        data_rows.append(f"{row_number}{row_cells}")
+    
+    # Build bottom border
+    bottom_border = BOTTOM_LEFT + BOTTOM_T.join(HORIZONTAL * w for w in col_widths) + BOTTOM_RIGHT
+    
+    # Combine all parts
+    table = [
+        "```diff",
+        "+ Table Display 📊",
+        top_border,
+        header_row,
+        separator
+    ]
+    table.extend(data_rows)
+    table.append(bottom_border)
+    table.append("```")
+    
+    return "\n".join(table)
 
 
 async def get_table(guild_id):
