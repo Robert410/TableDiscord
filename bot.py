@@ -6,6 +6,7 @@ from pathlib import Path
 from discord.ext import commands
 import asyncio
 from discord.errors import DiscordServerError
+from discord import app_commands
 
 async def safe_send(ctx, message, max_retries=3):
     """Helper function to retry failed messages"""
@@ -80,6 +81,18 @@ def format_table(headers, rows):
         + "\n".join(data_rows) +
         "\n```"
     )
+    
+@bot.event
+async def on_ready():
+    try:
+        synced = await bot.tree.sync()
+        print(f"✅ Synced {len(synced)} slash command(s)")
+    except Exception as e:
+        print(f"❌ Failed to sync commands: {e}")
+        
+@bot.tree.command(name="ping", description="Check if the bot is alive")
+async def ping(interaction: discord.Interaction):
+    await interaction.response.send_message("🏓 Pong!", ephemeral=True) 
 # --- COMMANDS ---
 @bot.command()
 async def createtable(ctx):
